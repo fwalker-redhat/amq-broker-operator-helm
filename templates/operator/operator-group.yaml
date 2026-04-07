@@ -1,0 +1,38 @@
+---
+{{- /*
+This template will generate a `OperatorGroup` for the Red Hat AMQ Broker Operator
+if the `operator.enabled` value is set to `true`.
+
+The default behavior of this `OperatorGroup` is to watch all namespaces which
+will then manage all namespaces on the target OpenShift cluster. To have this
+operator manage only a subset of namespaces the `operator.singleInstance` value
+should be set to `false` and a list of managed namespaces included in the
+`operator.managedNamespaces` value.
+
+An `Subscription` is used in conjunction with this `OperatorGroup` to install
+the operator and both the `Subscription` and this `OperatorGroup` will be
+placed in the `Namespace` specified by the `operator.installNamespace` value.
+*/}}
+{{- if and .Values.operator.enabled (not (lookup "operators.coreos.com/v1" "OperatorGroup" "" "")) -}}
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+ name: amq-broker
+ namespace: {{ .Values.operator.installNamespace }}
+{{- /*
+When the `operator.singleInstance` value is set to `false` the associated
+operator will manage specific namespaces only. The recommended best practice to
+reduce operational overhead is to have a single operator manage all Red Hat AMQ
+Broker instances.
+*/}}
+  {{- if not .Values.operator.singleInstance }}
+spec:
+  targetNamespaces:
+{{- /*
+The list of namespaces that will be managed by the associated operator.
+*/}}
+    {{- range .Values.operator.managedNamespaces }}
+    - {{ . }}
+    {{- end }}
+  {{- end }}
+{{- end -}}

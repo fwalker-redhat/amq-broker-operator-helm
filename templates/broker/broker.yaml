@@ -1,0 +1,230 @@
+---
+{{- if .Values.broker.enabled }}
+apiVersion: broker.amq.io/v1beta1
+kind: ActiveMQArtemis
+metadata:
+  name: {{ .Values.broker.name }}
+spec:
+  deploymentPlan:
+    size: {{ .Values.broker.deploymentPlan.replicas }}
+    image: {{ .Values.broker.deploymentPlan.image }}
+    requireLogin: {{ not .Values.authentication.disable }}
+    persistenceEnabled: {{ .Values.broker.deploymentPlan.persistenceEnabled }}
+    storage:
+      size: {{ .Values.broker.deploymentPlan.storage.size }}
+  {{- if .Values.broker.deploymentPlan.storage.storageClassName }}
+      storageClassName: {{ .Values.broker.deploymentPlan.storage.storageClassName }}
+  {{- end }}
+    journalType: {{ .Values.broker.deploymentPlan.journalType }}
+    messageMigration: {{ .Values.broker.deploymentPlan.messageMigration }}
+  {{- with .Values.resources }}
+    resources:
+      requests:
+        memory: {{ .requests.memory }}
+        cpu: {{ .requests.cpu }}  
+      limits:
+        memory: {{ .limits.memory }}
+        cpu: {{ .limits.cpu }}  
+  {{- end }}
+  {{- with .Values.availability -}}
+    {{- if .enabled }}
+    affinity:
+      podAntiAffinity:
+      {{- if eq "preferred" .antiAffinitityType }}
+      {{- $weight := 100 }}
+        preferredDuringSchedulingIgnoredDuringExecution:
+        {{- if .zone }}
+          - weight: {{ $weight }}
+            podAffinityTerm:
+            {{- include "label-selector.zone" $ | nindent 14 }}
+          {{- $weight = 90 -}}
+        {{- end }}
+        {{- if .hostname }}
+          - weight: {{ $weight }}
+            podAffinityTerm:
+            {{- include "label-selector.hostname" $ | nindent 14 }}
+        {{- end }}        
+      {{- else if eq "required" .antiAffinitityType }}
+        requiredDuringSchedulingIgnoredDuringExecution:
+        {{- if .zone }}
+          - {{ include "label-selector.zone" $ | indent 12 | trim }}
+        {{- end }}
+        {{- if .hostname }}
+          - {{ include "label-selector.hostname" $ | indent 12 | trim }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+    enableMetricsPlugin: {{ .Values.monitoring.enablePrometheus }}
+  {{- if and (not .Values.authentication.disabled) (or
+    (and .Values.authentication.propertiesRealm.enabled 
+    .Values.authentication.propertiesRealm.credentialsSecretName)
+    (and .Values.authentication.ldapRealm.enabled 
+    .Values.authentication.propertiesRealm.credentialsSecretName)
+    (.Values.broker.mirroring.enabled)) }}
+    extraMounts:
+      secrets:
+    {{- if .Values.broker.mirroring.enabled }}
+        - {{ .Values.broker.mirroring.tlsStoresSecretName }}
+    {{- end }}
+    {{- if or (and .Values.authentication.propertiesRealm.enabled 
+    .Values.authentication.propertiesRealm.credentialsSecretName)
+    .Values.authentication.ldapRealm.enabled }}
+        - {{ .Values.broker.name }}-login-jaas-config
+    {{- end }}
+  {{- end }}
+  {{- if .Values.broker.console.expose }}
+  console:
+    expose: {{ .Values.broker.console.expose }}
+    sslEnabled: {{ .Values.broker.console.tls.sslEnabled }}
+    {{- if .Values.broker.console.tls.sslEnabled }}    
+    sslSecret: {{ .Values.broker.console.tls.sslSecret }}
+    {{- end }}
+    {{- if .Values.broker.console.customHost }}
+    ingressHost: {{ .Values.broker.console.customHost }}
+    {{- end }}
+  {{- end }}
+  {{- if and .Values.broker.customDomain }}
+  ingressDomain: {{ .Values.broker.customDomain }}
+  {{- end }}
+  {{- if or .Values.broker.deploymentPlan.customProperties
+    (not .Values.encryption.disable) (and .Values.authorization.enabled
+    .Values.authorization.customRoles.enabled) .Values.logging.overrideLevels
+    .Values.addresses.enabled }} 
+  brokerProperties:
+    {{- if .Values.broker.deploymentPlan.customProperties}}
+    {{- toYaml .Values.broker.deploymentPlan.customProperties | nindent 4 }}
+    {{- end }}
+    {{- if not .Values.encryption.disable }}
+    - "acceptorConfigurations.new-acceptor.params.sslAutoReload=true"
+    {{- end }}
+    {{- if .Values.logging.overrideLevels }}
+      {{- range $log, $level := .Values.logging }}
+        {{- if and (ne $log "overrideLevels") (not (eq $level nil)) }}
+    - {{ $log }}={{ $level }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if and .Values.authorization.enabled .Values.authorization.customRoles.enabled }}
+      {{- range $role, $entries := .Values.authorization.customRoles.roles }}
+        {{- range $i, $entry := $entries }}
+        {{- $addr := $entry.address }}
+          {{- range $key, $val := $entry }}
+            {{- if and (ne $key "address") (not (eq $val nil)) }}
+    - securityRoles."{{ $addr }}".{{ $role }}.{{ $key }}={{ $val }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.addresses.enabled }}
+      {{- range $address, $addressSetting := .Values.addresses }}
+        {{- if and (ne $address "enabled") ($addressSetting.enabled) }}
+          {{- range $addressSetting.configurations }}
+    - {{ .}}
+          {{- end }}
+          {{- range $addressSetting.queueConfigurations }}
+    - {{ .}}
+          {{- end }}
+          {{- range $addressSetting.settings }}
+    - {{ .}}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.broker.mirroring.enabled }}
+  {{- toYaml .Values.broker.mirroring.mirror | nindent 4 }}
+  {{- end }}
+  {{- if .Values.broker.deploymentPlan.podDisruptionBudget.enable }}
+    podDisruptionBudget:
+      maxUnavailable: {{ .Values.connect.deploymentPlan.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  {{- if .Values.broker.acceptors }}  
+  acceptors:
+    {{- range .Values.broker.acceptors }}
+    - name: {{ .name }}
+      protocols: {{ .protocols | default "amqp" }}
+      port: {{ .port }}
+      {{- if .connectionsAllowed }}
+      connectionsAllowed: {{ .connectionsAllowed }}
+      {{- end }}
+      expose: {{ .expose }}
+      {{- if .amqpMinLargeMessageSize }}
+      amqpMinLargeMessageSize: {{ .amqpMinLargeMessageSize }}
+      {{- end }}
+      sslEnabled: {{ .tls.sslEnabled }}
+      {{- if .tls.sslEnabled}}    
+      sslSecret: {{ .tls.sslSecret }}
+      {{- end }}
+      {{- if and (not $.Values.authentication.disable) 
+        $.Values.authentication.clientCertificateAuthentication.enabled }}
+      needClientAuth: true
+      trustSecret: {{ $.Values.authentication.clientCertificateAuthentication.clientCertSecretName }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if or .Values.broker.deploymentPlan.customJavaOpts .Values.broker.console.allowRoles (and 
+    .Values.authentication.ldapRealm.enabled .Values.authentication.ldapRealm.credentialSecret
+    .Values.authentication.ldapRealm.credentialAlias) }}
+  env:
+    {{- $JAVA_ARGS := "" -}}
+    {{- if .Values.broker.deploymentPlan.customJavaOpts -}}
+      {{ $JAVA_ARGS = .Values.broker.deploymentPlan.customJavaOpts }}
+    {{- end -}}
+    {{- if .Values.broker.console.allowRoles -}}
+      {{ $JAVA_ARGS = cat $JAVA_ARGS (print "-Dhawtio.roles=" .Values.broker.console.allowRoles) }}
+    {{- end -}}
+    {{- if and .Values.authorization.enabled .Values.authorization.customRoles.enabled -}}
+      {{ $JAVA_ARGS = cat $JAVA_ARGS "-Djavax.management.builder.initial=org.apache.activemq.artemis.core.server.management.ArtemisRbacMBeanServerBuilder" }}
+      {{- if not .Values.broker.console.allowRoles -}}
+        {{ $JAVA_ARGS = cat $JAVA_ARGS "-Dhawtio.roles=*" }}
+      {{- end -}}
+    {{- end -}}
+    {{- if and .Values.authentication.ldapRealm.enabled .Values.authentication.ldapRealm.credentialSecret
+      .Values.authentication.ldapRealm.credentialAlias -}}
+      {{ $JAVA_ARGS =  cat $JAVA_ARGS "-D=ldap.connection.password$(LDAP_CONNECTION_PASSWORD)" }}
+    {{- end -}}
+    {{- if and .Values.authentication.ldapRealm.credentialSecret
+    .Values.authentication.ldapRealm.credentialAlias }}
+    - name: LDAP_CONNECTION_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          key: {{ .Values.authentication.ldapRealm.credentialAlias }}
+          name: {{ .Values.authentication.ldapRealm.credentialSecret }}
+    {{- end }}
+    - name: JAVA_ARGS_APPEND
+      value: {{ $JAVA_ARGS }}
+  {{- end }}
+  {{- if or .Values.broker.customRouteLabels (and .Values.authorization.enabled
+    .Values.authorization.customRoles.enabled) -}}
+    {{- if and .Values.authorization.enabled .Values.authorization.customRoles.enabled }}
+  resourceTemplates:
+    - patch:
+        kind: StatefulSet
+        spec:
+          template:
+            spec:
+              initContainers:
+              - args:
+                - -c
+                - /opt/amq/bin/launch.sh && /opt/amq-broker/script/default.sh; echo
+                  "Empty management.xml"; echo "<management-context xmlns=\"http://activemq.apache.org/schema\"
+                  />" > /amq/init/config/amq-broker/etc/management.xml
+                name: broker-container-init
+      selector:
+        kind: StatefulSet
+    {{- end }}
+    {{- if .Values.broker.customRouteLabels }}
+    - labels:
+        {{- range $key, $value := .Values.broker.customRouteLabels }}
+        {{ $key }}: {{ $value }}
+        {{- end }}
+      selector:
+        kind: Route
+    {{- end }}
+  {{- end }}
+  {{- if .Values.admin }}
+  adminUser: {{ .Values.admin.adminUser }}
+  {{- end }}
+{{- end }}

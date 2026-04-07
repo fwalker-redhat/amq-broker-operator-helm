@@ -1,0 +1,31 @@
+---
+{{- /*
+This template will generate a `Subscription` for the Red Hat AMQ Broker Operator
+if the `operator.enabled` value is set to `true`.
+
+An `OperatorGroup` is used in conjunction with this `Subscription` to install
+the operator and both the `OperatorGroup` and this `Subscription` will be
+placed in the `Namespace` specified by the `operator.installNamespace` value.
+*/}}
+{{- if .Values.operator.enabled -}}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+ name: amq-broker-operator
+ namespace: {{ .Values.operator.installNamespace }}
+spec:
+{{- /*
+The channel should be set according to requirements. Currently the default is
+`stable` which, at time of writing, is the 8.5.x range.
+*/}}
+ channel: {{ .Values.operator.channel }}
+{{- /*
+The `installPlanApproval` field is used to control how upgrades are applied to
+the operator. For production environments that have change control requirements
+it is best to set this to `Manual`
+*/}} 
+ installPlanApproval: {{ .Values.operator.updateApproval }}
+ name: amq-broker-rhel9
+ source: redhat-operators
+ sourceNamespace: openshift-marketplace
+{{- end -}}

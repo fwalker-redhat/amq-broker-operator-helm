@@ -1,0 +1,20 @@
+---
+{{- if and .Values.broker.enabled (and .Values.monitoring.enableServiceMonitor
+  .Values.monitoring.enablePrometheus) }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.broker.name }}-amq-metrics-monitor
+spec:
+  selector:
+    matchLabels:
+      application: {{ .Values.broker.name }}-app
+  endpoints:
+  - path: /metrics
+    scheme: http # https
+    port: console-jolokia
+    interval: 30s
+    honorLabels: true
+    #tlsConfig:
+    # insecureSkipVerify: true
+{{- end -}}

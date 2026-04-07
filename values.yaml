@@ -1,0 +1,297 @@
+# Default values for amq-broker-config.
+
+# -- Settings related to the Red Hat AMQ Broker Operator `Subscription`
+# @default -- See child keys
+operator:
+  # -- (boolean) Create a `Subscription` for the Red Hat AMQ Broker Operator
+  enabled: false
+  # -- (boolean) Use a single operator instance to manage all Red Hat AMQ Broker 
+  # instances
+  singleInstance: true
+  # -- The `channel` of the Operator
+  channel: 7.13.x
+  # -- The minimum `ClusterServiceVersion` for the operator
+  startingCSV: 
+  # -- Set the `Subscription` update approval mode. `Manual` will require
+  # install plans to be approved before upgrades will take place (recommended 
+  # for Production installations) while `Automatic` will be applied as and when
+  # they become available
+  updateApproval: Manual
+  # -- The `Namespace` the Operator will be deployed in
+  installNamespace: openshift-operators
+  # -- When `operator.singleInstance` is marked as false, this instance of the 
+  # Operator will manage these namespaces
+  managedNamespaces: []
+
+# -- Settings related to the Red Hat AMQ Broker
+# @default -- See child keys
+broker:
+  # -- (boolean) Create an `ActiveMQArtemis` resource for the Red Hat AMQ Broker Operator
+  enabled: true
+  # -- The name of the ActiveMQArtemis custom resource.
+  name: amq
+  # -- Labels to apply to the broker resources.
+  labels:
+    app: amq-broker
+  # -- Labels to apply to the operator controlled routes.
+  customRouteLabels:
+  # -- (string) Custom domain for the operator controlled routes.
+  # Refer to https://docs.redhat.com/en/documentation/red_hat_amq_broker/7.13/html-single/deploying_amq_broker_on_openshift/index#proc-br-enabling-console-access_broker-ocp
+  # for configuration details
+  customDomain:
+  # -- Settings related to the Deployment Plan for the Broker
+  # @default -- See child keys
+  deploymentPlan:
+    # -- The number of broker pods to deploy.
+    replicas: 1
+    # - The container image for the broker.
+    image: placeholder
+
+    # Storage configuration
+    persistenceEnabled: true # Enable or disable persistent storage for the broker.
+    storage:
+      size: 1Gi # The size of the persistent volume.
+      storageClassName: # The storage class to use for the persistent volume.
+    journalType: aio # The journal type to use. 'aio' is recommended for performance.
+    messageMigration: true # Enable or disable automatic message migration on scaledown.
+
+    # Broker resources configuration 
+    resources:
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+      requests:
+        cpu: "250m"
+        memory: "1Gi"
+
+    # Pod disruption budget configuration
+    podDisruptionBudget:
+      minAvailable: 1 # The minimum number of available pods during voluntary disruptions.
+
+    # Broker custom configuration
+    customProperties:
+      # Security caches configuration
+      # - securityInvalidationInterval=240000
+      # - authenticationCacheSize=2000
+      # - authorizationCacheSize=2000
+      # Message expiry configuration
+      # - messageExpiryScanPeriod=10000
+      # Management (JMX) operations RBAC
+      # - securityRoles.#=- # => Initialization so that  brokerProperties are the single source of truth
+      # Operator minimal admin default role
+      # - securityRoles."mops.#".admin.view=true
+      # - securityRoles."mops.#".admin.edit=true
+
+    # -- (string) Custom Java Options
+    customJavaOpts:
+
+  # -- Control console configurations for Red Hat AMQ Broker
+  # @default -- See child keys
+  console:
+    # -- (bool) Create a route or ingress to expose the console
+    expose: true
+    # -- (string) Custom host name for the console. Refer to https://docs.redhat.com/en/documentation/red_hat_amq_broker/7.13/html-single/deploying_amq_broker_on_openshift/index#proc-br-enabling-console-access_broker-ocp
+    # for configuration details
+    customHost:
+    # -- TLS/SSL settings for the console ingress
+    # @default -- See child keys
+    tls:
+      # -- (bool) Enable TLS/SSL for the console ingress
+      sslEnabled: true
+      # -- (string) The name of the TLS secret for the console.
+      sslSecret: default-ssl
+    # -- (string) A comma separated list of roles that are allowed to access the management console
+    allowRoles:
+
+  # Acceptors configuration
+  acceptors:
+    - 
+      # -- The name of the acceptor.
+      name: acceptor1
+      # -- The protocol for the acceptor.
+      protocols: all
+      # -- The port for the acceptor.
+      port: 5672
+      connectionsAllowed: 5 # The maximum number of connections allowed.
+      expose: true # Expose the acceptor.
+      tls:
+        sslEnabled: true # Enable SSL for the acceptor.
+        sslSecret: default-ssl # The name of the TLS secret for the acceptor.
+
+  # Broker mirroring (active/ DR replication)
+  mirroring:
+    enabled: false # Enable or disable broker mirroring.
+    tlsStoresSecretName: mirror # The name of the secret containing the TLS stores.
+    mirror:
+      # Mirror configuration properties
+      # AMQP connection URI for the remote (DR) broker
+      - 'AMQPConnections.dr.uri=tcp://broker-mirror-${STATEFUL_SET_ORDINAL}-svc-rte-amq-dr'
+      # Configure the connection as a MIRROR type
+      - AMQPConnections.dr.connectionElements.mirror.type=MIRROR
+      # Replicate message acknowledgements
+      - AMQPConnections.dr.connectionElements.mirror.messageAcknowledgements=true
+      # Replicate queue creation events
+      - AMQPConnections.dr.connectionElements.mirror.queueCreation=true
+      # Replicate queue removal events
+      - AMQPConnections.dr.connectionElements.mirror.queueRemoval=true 
+
+# -- Control authentication configurations for Red Hat AMQ Broker
+# @default -- See child keys
+authentication:
+  # -- (bool) Disable authentication. Not recommended for production.
+  disable: false
+  # -- Control Properties Security Realm Configuration when using multiple
+  # security realms
+  # @default -- See child keys
+  propertiesRealm:
+    # -- Enable properties security realm
+    enabled: true
+    # -- (string) Name of the `Secret` containing an users and roles declaration used to
+    # configure a properties realm. There must be an entry with key `custom-users.properties`
+    # and contents in the format of 'username = password' and an entry with key
+    # `custom-roles.properties` in the format of 'role = user1,user2...'
+    credentialsSecretName:
+  # -- Control LDAP Security Realm Configuration. This will result in a custom
+  # configuration being created as a `ConfigMap`
+  # @default -- See child keys
+  ldapRealm:
+    # -- Enable LDAP security realm
+    enabled: false
+    # -- (string) Specifies the URL for LDAP server connections in the format
+    # ldap[s]://{hostname}:{port}
+    url:
+    # -- (string) Specifies the user principal for LDAP server connections
+    principal:
+    # -- (string) Name of the `secret` that contains the password used to
+    # connect to the LDAP server
+    credentialSecret:
+    # -- (string) Name of the key from the `secret` that
+    # contains the password used to connect to the LDAP server. Must only include
+    # the password.
+    credentialAlias:
+    # -- (int) Sets the timeout, in milliseconds, for LDAP server
+    # connections.
+    connectionTimeout: 5000
+    # -- (int) Sets the read timeout, in milliseconds, for LDAP server
+    # operations.
+    readTimeout: 5000
+    # -- (string) Sets the Base DN for Users
+    userBase:
+    # -- (string) # -- (string) Sets the Base DN for Roles
+    roleBase:
+  # Used to configure Client Certificate Authentication
+  # @default -- See child keys
+  clientCertificateAuthentication:
+    # -- Enable Client Certificate Authentication
+    enabled: false
+    # -- (string) Name of the secret that stores a trust bundle of client 
+    # certificates and the CA certificate to trust.
+    clientCertSecretName:
+
+# -- Control authorization for Red Hat AMQ Broker.
+# @default -- See child keys
+authorization:
+  # -- Enable authorization to provide more granular security control over the
+  # Red Hat AMQ Broker.
+  enabled: false
+  # -- Custom RBAC roles permission configuration.
+  # @default -- See child keys
+  customRoles:
+    # -- Enable custom role configuration.
+    enabled: false
+    # -- List of custom role configurations.
+    # @default -- See example role entry. Will emit entries in the format
+    # of <address>.<resource name>.<operation>
+    roles:
+      # -- Name of the custom role
+      admin:
+          # -- A list of permissions for a role. Address field must exist.
+        - address: "#"
+          # -- Resource Name as key and Operation as value
+          createNonDurableQueue: true
+          deleteNonDurableQueue: true
+          createDurableQueue: true
+          deleteDurableQueue: true
+          createAddress: true
+          deleteAddress: true
+          consume: true
+          browse: true
+          send: true
+          manage: true
+          view: true
+        - address: "mops.#"
+          # -- Resource Name as key and Operation as value
+          edit: true
+          view: true
+
+# -- Control encryption configurations for Red Hat AMQ Broker
+# @default -- See child keys
+encryption:
+  # -- (bool) Disable encryption. Not recommended for production.
+  disable: false
+  # -- (string) Name of the secret containing the custom TLS/SSL certificate
+  # and key
+  certSecretName:
+
+# -- Control resource configurations for Red Hat AMQ Broker
+# @default -- See child keys
+resources:
+  # -- A limit sets the maximum amount of a resource (CPU or memory) that a
+  # container is allowed to consume.
+  # @default -- See child keys
+  limits:
+    # -- The maximum amount of CPU the application is allowed to use.
+    cpu: 1000m
+    # -- The maximum amount of memory the application is allowed to use.
+    memory: 1Gi
+  # -- A request specifies the minimum amount of a resource (CPU or memory) that
+  # Kubernetes guarantees for a container.
+  # @default -- See child keys
+  requests:
+    # -- The amount of CPU guaranteed for the application to use.
+    cpu: 250m
+    # -- The amount of memory guaranteed for the application to use.
+    memory: 1Gi
+
+# -- Control high availability for Red Hat AMQ Broker
+# @default -- See child keys
+availability:
+  # -- Enable high availability using anti-affinity.
+  enabled: false
+  # -- One of `preferred`, for `preferredDuringSchedulingIgnoredDuringExecution`,
+  # or `required`, for `requiredDuringSchedulingIgnoredDuringExecution`, modes.
+  antiAffinitityType: required
+  # -- Use `kubernetes.io/hostname` `topologyKey`
+  hostname: true
+  # -- Use `topology.kubernetes.io/zone` `topologyKey`
+  zone: false
+
+# -- Control monitoring configurations for Red Hat AMQ Broker
+# @default -- See child keys
+monitoring:
+  # -- Create a `ServiceMonitor` to collect metrics.
+  enableServiceMonitor: false
+  # -- Disable the default prometheus service monitor
+  enablePrometheus: true
+
+# -- Control log level for categories for Red Hat AMQ Broker
+# @default -- See child keys
+logging:
+  overrideLevels: false
+  'logger.level': INFO
+  'logger.org.apache.activemq.artemis.core.server.level': DEBUG
+
+
+addresses:
+  enabled: false
+  address-name:
+    enabled: false
+    configurations:
+      # - addressConfigurations.<address name>.routingTypes=<routing type>
+      - addressConfigurations.address-name.routingTypes=ANYCAST
+    queueConfigurations:
+      # - addressConfigurations.<address name>.queueConfigs.<queue name>.address=<address>
+      - addressConfigurations.address-name.queueConfigs.address-name.address=address-name
+      # - addressConfigurations.<address name>.queueConfigs.<queue name>.<queue setting>
+    settings:
+    # - addressSettings.<address name>.<address setting>

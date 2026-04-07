@@ -1,0 +1,11 @@
+---
+{{- /*
+This template will create a namespace with the name specified in the
+`operator.installNamespace` value if it does not already exist.
+*/}}
+{{- if and .Values.operator.enabled (not (lookup "v1" "Namespace" "" .Values.operator.installNamespace)) -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.operator.installNamespace }}
+{{- end -}}

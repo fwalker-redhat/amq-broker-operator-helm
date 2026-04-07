@@ -1,0 +1,13 @@
+apiVersion: v2
+name: amq-broker-config
+description: Helm chart to deploy an ArtemisMQ instance using Red Hat AMQ Broker Operator
+type: application
+version: 0.1.0
+appVersion: "7.13.3"
+maintainers:
+  - name: Sarafou Balde
+    email: sbalde@redhat.com
+    url: https://www.redhat.com
+  - name: Fraser Walker
+    email: fwalker@redhat.com
+    url: https://www.redhat.com
