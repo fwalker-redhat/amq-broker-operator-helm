@@ -197,9 +197,9 @@ spec:
       value: {{ $JAVA_ARGS }}
   {{- end }}
   {{- if or .Values.broker.customRouteLabels (and .Values.authorization.enabled
-    .Values.authorization.customRoles.enabled) -}}
-    {{- if and .Values.authorization.enabled .Values.authorization.customRoles.enabled }}
+    .Values.authorization.customRoles.enabled) }}
   resourceTemplates:
+    {{- if and .Values.authorization.enabled .Values.authorization.customRoles.enabled }}
     - patch:
         kind: StatefulSet
         spec:
