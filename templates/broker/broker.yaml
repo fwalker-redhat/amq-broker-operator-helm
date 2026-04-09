@@ -84,7 +84,7 @@ spec:
     ingressHost: {{ .Values.broker.console.customHost }}
     {{- end }}
   {{- end }}
-  {{- if and .Values.broker.customDomain }}
+  {{- if .Values.broker.customDomain }}
   ingressDomain: {{ .Values.broker.customDomain }}
   {{- end }}
   {{- if or .Values.broker.deploymentPlan.customProperties
@@ -161,6 +161,9 @@ spec:
         $.Values.authentication.clientCertificateAuthentication.enabled }}
       needClientAuth: true
       trustSecret: {{ $.Values.authentication.clientCertificateAuthentication.clientCertSecretName }}
+      {{- end }}
+      {{- if .customHost }}
+      ingressHost: {{ .customHost }}
       {{- end }}
     {{- end }}
   {{- end }}
