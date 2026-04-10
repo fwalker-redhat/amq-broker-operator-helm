@@ -71,6 +71,10 @@ spec:
     .Values.authentication.propertiesRealm.credentialsSecretName)
     .Values.authentication.ldapRealm.enabled }}
         - {{ .Values.broker.name }}-login-jaas-config
+      {{- if and .Values.authentication.propertiesRealm.enabled 
+        .Values.authentication.propertiesRealm.credentialsSecretName }}
+        - {{ .Values.authentication.propertiesRealm.credentialsSecretName }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- if .Values.broker.console.expose }}
